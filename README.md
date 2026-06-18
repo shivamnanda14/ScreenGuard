@@ -41,5 +41,7 @@ A lightweight background application that resides silently within the Windows sy
 
 ---
 
+---
+
 ## 📖 Deep-Dive Technical Documentation
-For an in-depth breakdown of the underlying system architecture, multi-threading implementation, spatial tracking math, and operating system permission handling, please see our full [DOCUMENTATION.md](./DOCUMENTATION.md) file.
+For an in-depth breakdown of the underlying system architecture, multi-threading implementation, spatial tracking math, and operating system permission handling, please check out the full [Project Documentation PDF](./ScreenGuard_Technical_Architecture_Documentation_git.pdf).
