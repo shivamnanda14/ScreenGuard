@@ -13,6 +13,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,7 +43,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request necessary permissions on load
         ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 101)
 
         if (!Settings.canDrawOverlays(this)) {
@@ -65,13 +65,14 @@ fun MainDashboardScreen() {
     val context = LocalContext.current
     var isAccessibilityEnabled by remember { mutableStateOf(false) }
 
-    // Check accessibility status when returning to app
+    // Manage profile execution state locally
+    var isChildModeActive by remember { mutableStateOf(PreferencesManager.isChildMode(context)) }
+
     DisposableEffect(Unit) {
         isAccessibilityEnabled = isAccessibilityServiceEnabled(context, ScreenGuardService::class.java)
         onDispose {}
     }
 
-    // Refresh status state on app resume
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -85,10 +86,10 @@ fun MainDashboardScreen() {
         }
     }
 
-    val themeBackground = Color(0xFF0F172A) // Sleek slate-900 background
-    val cardBackground = Color(0xFF1E293B) // Slate-800
-    val primaryCrimson = Color(0xFFF43F5E) // Vibrant rose-500
-    val emeraldActive = Color(0xFF10B981) // Emerald green-500
+    val themeBackground = Color(0xFF0F172A)
+    val cardBackground = Color(0xFF1E293B)
+    val primaryCrimson = Color(0xFFF43F5E)
+    val emeraldActive = Color(0xFF10B981)
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -105,7 +106,7 @@ fun MainDashboardScreen() {
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
-                            colors = listOf(Color(0xFF1E1B4B), themeBackground) // Deep indigo-950 to slate-900
+                            colors = listOf(Color(0xFF1E1B4B), themeBackground)
                         )
                     )
                     .padding(paddingValues)
@@ -117,34 +118,19 @@ fun MainDashboardScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Header Section with pulsing status shield
+                    // Header Section
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(top = 20.dp)
                     ) {
                         PulsingShieldIcon(isActive = isAccessibilityEnabled)
-
                         Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "ScreenGuard Pro",
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            letterSpacing = 0.5.sp
-                        )
-
+                        Text(text = "ScreenGuard Pro", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "Smart Eyesight Protection",
-                            fontSize = 14.sp,
-                            color = Color(0xFF94A3B8),
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text(text = "Smart Eyesight Protection", fontSize = 14.sp, color = Color(0xFF94A3B8))
                     }
 
-                    // Middle status card dashboard
+                    // Dashboard Card
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -162,17 +148,8 @@ fun MainDashboardScreen() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text(
-                                        text = "Active Protection",
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 16.sp,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = if (isAccessibilityEnabled) "Guard active in background" else "Awaiting system activation",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF94A3B8)
-                                    )
+                                    Text(text = "Active Protection", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.White)
+                                    Text(text = if (isAccessibilityEnabled) "Guard active in background" else "Awaiting system activation", fontSize = 12.sp, color = Color(0xFF94A3B8))
                                 }
 
                                 val activeBadgeColor by animateColorAsState(
@@ -187,75 +164,75 @@ fun MainDashboardScreen() {
                                         .border(1.dp, activeBadgeColor, CircleShape)
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
-                                    Text(
-                                        text = if (isAccessibilityEnabled) "RUNNING" else "INACTIVE",
-                                        color = activeBadgeColor,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp
-                                    )
+                                    Text(text = if (isAccessibilityEnabled) "RUNNING" else "INACTIVE", color = activeBadgeColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
                             Divider(color = Color(0xFF334155), modifier = Modifier.padding(vertical = 16.dp))
 
-                            // Interactive steps info
-                            OnboardingStep(
-                                icon = Icons.Default.CheckCircle,
-                                text = "Camera permission granted",
-                                completed = true
-                            )
+                            // 🛠️ NEW: Biometric Mode Configuration Block
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isChildModeActive) "Child Profile Active" else "Adult Profile Active",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = if (isChildModeActive) Color(0xFF38BDF8) else Color.White
+                                    )
+                                    Text(
+                                        text = "Calibrates distance boundary for facial scales at exactly 25 cm.",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                                Switch(
+                                    checked = isChildModeActive,
+                                    onCheckedChange = { isChecked ->
+                                        isChildModeActive = isChecked
+                                        PreferencesManager.setChildMode(context, isChecked)
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF38BDF8),
+                                        checkedTrackColor = Color(0xFF0284C7)
+                                    )
+                                )
+                            }
+
+                            Divider(color = Color(0xFF334155), modifier = Modifier.padding(vertical = 16.dp))
+
+                            OnboardingStep(icon = Icons.Default.CheckCircle, text = "Camera permission granted", completed = true)
                             Spacer(modifier = Modifier.height(12.dp))
-                            OnboardingStep(
-                                icon = Icons.Default.Warning,
-                                text = "Overlay drawing permission allowed",
-                                completed = Settings.canDrawOverlays(context)
-                            )
+                            OnboardingStep(icon = Icons.Default.Warning, text = "Overlay drawing permission allowed", completed = Settings.canDrawOverlays(context))
                             Spacer(modifier = Modifier.height(12.dp))
-                            OnboardingStep(
-                                icon = Icons.Default.Settings,
-                                text = "Accessibility service toggled on",
-                                completed = isAccessibilityEnabled
-                            )
+                            OnboardingStep(icon = Icons.Default.Settings, text = "Accessibility service toggled on", completed = isAccessibilityEnabled)
                         }
                     }
 
-                    // Action buttons area
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+                    // Action Buttons
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Button(
                             onClick = {
                                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                                 context.startActivity(intent)
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
                             shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isAccessibilityEnabled) Color(0xFF475569) else primaryCrimson
-                            )
+                            colors = ButtonDefaults.buttonColors(containerColor = if (isAccessibilityEnabled) Color(0xFF475569) else primaryCrimson)
                         ) {
                             Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isAccessibilityEnabled) "Configure Accessibility" else "Enable Accessibility Shield",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(text = if (isAccessibilityEnabled) "Configure Accessibility" else "Enable Accessibility Shield", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
-
                         Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = "To turn off the shield temporary, click the button above and toggle the ScreenGuard switch off.",
-                            fontSize = 11.sp,
-                            color = Color(0xFF64748B),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
+                        Text(text = "To turn off the shield temporary, click the button above and toggle the ScreenGuard switch off.", fontSize = 11.sp, color = Color(0xFF64748B), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 16.dp))
                     }
                 }
             }
@@ -269,81 +246,35 @@ fun PulsingShieldIcon(isActive: Boolean) {
     val scale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
         targetValue = if (isActive) 1.08f else 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
+        animationSpec = infiniteRepeatable(animation = tween(1500, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse),
         label = "scale"
     )
-
     val activeColor = if (isActive) Color(0xFF10B981) else Color(0xFFF43F5E)
-
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .scale(scale)
-            .size(100.dp)
-            .clip(CircleShape)
-            .background(activeColor.copy(alpha = 0.08f))
-            .border(2.dp, activeColor.copy(alpha = 0.3f), CircleShape)
-            .padding(12.dp)
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(CircleShape)
-                .background(Brush.radialGradient(colors = listOf(activeColor.copy(alpha = 0.2f), Color.Transparent)))
-        ) {
-            Icon(
-                imageVector = Icons.Default.Info, // Placeholder for shield
-                contentDescription = null,
-                tint = activeColor,
-                modifier = Modifier.size(44.dp)
-            )
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.scale(scale).size(100.dp).clip(CircleShape).background(activeColor.copy(alpha = 0.08f)).border(2.2.dp, activeColor.copy(alpha = 0.3f), CircleShape).padding(12.dp)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize().clip(CircleShape).background(Brush.radialGradient(colors = listOf(activeColor.copy(alpha = 0.2f), Color.Transparent)))) {
+            Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = activeColor, modifier = Modifier.size(44.dp))
         }
     }
 }
 
 @Composable
 fun OnboardingStep(icon: ImageVector, text: String, completed: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (completed) Color(0xFF10B981) else Color(0xFF64748B),
-            modifier = Modifier.size(20.dp)
-        )
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = icon, contentDescription = null, tint = if (completed) Color(0xFF10B981) else Color(0xFF64748B), modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = text,
-            fontSize = 14.sp,
-            color = if (completed) Color.White else Color(0xFF94A3B8),
-            fontWeight = if (completed) FontWeight.Normal else FontWeight.Light
-        )
+        Text(text = text, fontSize = 14.sp, color = if (completed) Color.White else Color(0xFF94A3B8))
     }
 }
 
-// Utility function to scan running system accessibility service nodes
 fun isAccessibilityServiceEnabled(context: Context, service: Class<out AccessibilityService>): Boolean {
     val expectedComponentName = android.content.ComponentName(context, service)
-    val enabledServicesSetting = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-    ) ?: return false
-
+    val enabledServicesSetting = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
     val colonSplitter = TextUtils.SimpleStringSplitter(':')
     colonSplitter.setString(enabledServicesSetting)
-
     while (colonSplitter.hasNext()) {
         val componentNameString = colonSplitter.next()
         val enabledService = android.content.ComponentName.unflattenFromString(componentNameString)
-        if (enabledService != null && enabledService == expectedComponentName) {
-            return true
-        }
+        if (enabledService != null && enabledService == expectedComponentName) return true
     }
     return false
 }

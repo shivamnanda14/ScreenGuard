@@ -26,7 +26,6 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.util.concurrent.Executors
-import kotlin.math.cos
 
 class ScreenGuardService : AccessibilityService(), LifecycleOwner {
 
@@ -67,182 +66,135 @@ class ScreenGuardService : AccessibilityService(), LifecycleOwner {
     override fun onServiceConnected() {
         super.onServiceConnected()
         lifecycleRegistry.currentState = androidx.lifecycle.Lifecycle.State.STARTED
+        lifecycleRegistry.currentState = androidx.lifecycle.Lifecycle.State.RESUMED
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        // Root container to manage overall overlay layers
-        rootContainer = FrameLayout(this)
+        // Initialize UI Elements and Layout Arrays
+        setupOverlayLayout()
 
-        // 🎨 CARD: Elegant visual linear layout (vertical stacking)
+        // Boot CameraX Analysis Core
+        startCameraTracking()
+    }
+
+    private fun setupOverlayLayout() {
+        // The root container now uses a deep, dark slate with 90% opacity
+        // to create a heavy overlay mask if the device doesn't support hardware blur.
+        rootContainer = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#E60F172A")) // Slate-900 with high alpha (90% dark)
+
+            // Block all touches from leaking to the apps underneath.
+            // The child CANNOT click anything until they step back.
+            isClickable = true
+            isFocusable = true
+        }
+
+        // Beautiful central warning shield card
         animatedCardView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 0, 0, 0) // Padding is handled internally to host the progress strip nicely
-
-            // Premium background: Vibrant Cherry-Rose Gradient with physical drop shadow (Elevation)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 45f // Smooth pill-style card edges
-                colors = intArrayOf(
-                    Color.parseColor("#E11D48"), // Vivid glowing rose-600
-                    Color.parseColor("#9F1239")  // Deep rich rose-800
-                )
-                orientation = GradientDrawable.Orientation.LEFT_RIGHT
-                setStroke(3, Color.parseColor("#FDA4AF")) // Soft pink borders for a glowing physical edge
+            gravity = Gravity.CENTER
+            setPadding(40, 40, 40, 40)
+            val backgroundDrawable = GradientDrawable().apply {
+                setColor(Color.parseColor("#1E293B")) // Crisp Slate-800
+                cornerRadius = 48f
+                setStroke(4, Color.parseColor("#E11D48")) // Rose-600 premium alert accent border
             }
-            elevation = 24f // True Android dropshadow depth
+            background = backgroundDrawable
         }
 
-        // Inner vertical layout to add margins around text layers
-        val textContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(50, 40, 50, 40)
-        }
-
-        // Warning Title Line
         warningTitle = TextView(this).apply {
-            text = "⚠️ EYE PROTECTION SHIELD ⚠️"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            text = "⚠️ Screen Shield Active"
+            setTextColor(Color.parseColor("#F43F5E")) // Rose-500
+            textSize = 26f
+            setTypeface(null, Typeface.BOLD)
             gravity = Gravity.CENTER
-            letterSpacing = 0.08f
         }
 
-        // Countdown Subtitle Line
         countdownSubtitle = TextView(this).apply {
-            text = "Please sit back to continue"
-            setTextColor(Color.parseColor("#FFE4E6")) // High contrast light-rose-100 color
-            textSize = 12f
-            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            text = "Too close! Please look away or step back 25 cm."
+            setTextColor(Color.parseColor("#CBD5E1")) // Soft slate grey
+            textSize = 15f
             gravity = Gravity.CENTER
-            setPadding(0, 8, 0, 0)
+            setPadding(0, 16, 0, 32)
         }
 
-        textContainer.addView(warningTitle)
-        textContainer.addView(countdownSubtitle)
-        animatedCardView.addView(textContainer)
-
-        // 📈 PROGRESS BAR: Dynamic horizontal status bar strip at the bottom
         progressBarStrip = View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 20f
-                setColor(Color.parseColor("#FCA5A5")) // Highlight light red
+            val stripDecoration = GradientDrawable().apply {
+                setColor(Color.parseColor("#F43F5E"))
+                cornerRadius = 12f
             }
+            background = stripDecoration
         }
 
-        // Add the progress bar at the absolute bottom of the card
-        val progressParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            12 // 4dp height
-        ).apply {
-            setMargins(0, 0, 0, 0)
-        }
-        animatedCardView.addView(progressBarStrip, progressParams)
+        // Nest UI hierarchies
+        animatedCardView.addView(warningTitle)
+        animatedCardView.addView(countdownSubtitle)
+        animatedCardView.addView(progressBarStrip, LinearLayout.LayoutParams(450, 14))
 
-        // Add our card layout container into the main screen frame
         val cardParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            setMargins(50, 30, 50, 30) // Clean screen margins
-        }
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.CENTER
+        )
         rootContainer.addView(animatedCardView, cardParams)
-
-        // Prepare elements with clean start scales (hidden and shifted upward out of screen bounds)
-        rootContainer.visibility = View.GONE
-        animatedCardView.translationY = -250f
-        animatedCardView.alpha = 0f
-
-        val windowParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP
-            y = 60 // Clean placement below system notch layout boundaries
-        }
-
-        windowManager.addView(rootContainer, windowParams)
-
+    }
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun startCameraTracking() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
+
             val imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
 
             imageAnalysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
-                if (!powerManager.isInteractive) {
-                    clearTrackingState()
-                    imageProxy.close()
-                    return@setAnalyzer
-                }
-
                 val mediaImage = imageProxy.image
-                if (mediaImage != null) {
-                    val rotation = imageProxy.imageInfo.rotationDegrees
-                    val image = InputImage.fromMediaImage(mediaImage, rotation)
+                if (mediaImage != null && powerManager.isInteractive) {
+                    val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+                    val inputImage = InputImage.fromMediaImage(mediaImage, rotationDegrees)
 
-                    val frameWidth = if (rotation == 90 || rotation == 270) imageProxy.height else imageProxy.width
-                    val frameHeight = if (rotation == 90 || rotation == 270) imageProxy.width else imageProxy.height
-
-                    faceDetector.process(image)
+                    faceDetector.process(inputImage)
                         .addOnSuccessListener { faces ->
+                            // Read chosen mode from shared preferences configuration
+                            val isChildProfileEnabled = PreferencesManager.isChildMode(applicationContext)
+
+                            // 📐 CALIBRATION COEFFICIENTS AT EXACTLY 25 CM BOUNDARY
+                            val ADULT_PIXEL_WIDTH_THRESHOLD = 280
+                            val CHILD_PIXEL_WIDTH_THRESHOLD = 210
+
+                            val targetThreshold = if (isChildProfileEnabled) {
+                                CHILD_PIXEL_WIDTH_THRESHOLD
+                            } else {
+                                ADULT_PIXEL_WIDTH_THRESHOLD
+                            }
+
                             if (faces.isNotEmpty()) {
-                                val isAnyoneTooClose = faces.any { face ->
-                                    val box = face.boundingBox
-                                    val widthRatio = box.width().toFloat() / frameWidth.toFloat()
-                                    val heightRatio = box.height().toFloat() / frameHeight.toFloat()
-
-                                    val yawRad = Math.toRadians(face.headEulerAngleY.toDouble())
-                                    val pitchRad = Math.toRadians(face.headEulerAngleX.toDouble())
-
-                                    val compressionFactor = cos(yawRad) * cos(pitchRad)
-                                    val adaptiveThreshold = maxOf(0.34f, 0.40f * compressionFactor.toFloat())
-
-                                    widthRatio > adaptiveThreshold || heightRatio > adaptiveThreshold
+                                var breachDetected = false
+                                for (face in faces) {
+                                    val actualFaceWidth = face.boundingBox.width()
+                                    if (actualFaceWidth >= targetThreshold) {
+                                        breachDetected = true
+                                        break
+                                    }
                                 }
 
-                                if (isAnyoneTooClose) {
+                                if (breachDetected) {
                                     lastTimeSeenTooClose = System.currentTimeMillis()
-
                                     if (tooCloseStartTime == 0L) {
-                                        tooCloseStartTime = System.currentTimeMillis()
+                                        tooCloseStartTime = lastTimeSeenTooClose
                                     }
 
-                                    val elapsed = System.currentTimeMillis() - tooCloseStartTime
-                                    val secondsLeft = maxOf(0, 5 - (elapsed / 1000).toInt())
-
-                                    // Safely update the banner countdown and progress strip on UI Thread
-                                    mainHandler.post {
-                                        showBannerAnimated()
-                                        countdownSubtitle.text = "⚠️ LOCKING SCREEN IN $secondsLeft SECONDS ⚠️"
-
-                                        // Update progress bar width dynamically in real-time
-                                        val progressPercent = maxOf(0f, minOf(1.0f, elapsed.toFloat() / lockThresholdDuration.toFloat()))
-                                        val fullWidth = animatedCardView.width
-                                        val dynamicParams = progressBarStrip.layoutParams as LinearLayout.LayoutParams
-                                        // Progress bar shrinks as the lock threshold counts down
-                                        dynamicParams.width = (fullWidth * (1.0f - progressPercent)).toInt()
-                                        progressBarStrip.layoutParams = dynamicParams
-                                    }
-
-                                    if (elapsed >= lockThresholdDuration) {
-                                        performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-                                        clearTrackingState()
-                                    }
+                                    // Trigger non-blocking UI layout drawing
+                                    mainHandler.post { showSafetyOverlay() }
                                 } else {
-                                    handleAbsence()
+                                    evaluateGracePeriod()
                                 }
                             } else {
-                                handleAbsence()
+                                evaluateGracePeriod()
                             }
                         }
+                        .addOnFailureListener { it.printStackTrace() }
                         .addOnCompleteListener { imageProxy.close() }
                 } else {
                     imageProxy.close()
@@ -258,46 +210,62 @@ class ScreenGuardService : AccessibilityService(), LifecycleOwner {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    // Smoothly slides card down and fades in with springy bounce physics
-    private fun showBannerAnimated() {
-        if (isBannerShowing) return
-        isBannerShowing = true
-        rootContainer.visibility = View.VISIBLE
-
-        animatedCardView.animate()
-            .translationY(0f)
-            .alpha(1f)
-            .setDuration(400)
-            .setInterpolator(OvershootInterpolator(1.2f)) // Soft bounce effect
-            .start()
-    }
-
-    // Smoothly slides card back up out of view and fades out
-    private fun hideBannerAnimated() {
-        if (!isBannerShowing) return
-        isBannerShowing = false
-
-        animatedCardView.animate()
-            .translationY(-250f)
-            .alpha(0f)
-            .setDuration(300)
-            .withEndAction {
-                rootContainer.visibility = View.GONE
-            }
-            .start()
-    }
-
-    private fun handleAbsence() {
+    private fun evaluateGracePeriod() {
         val currentTime = System.currentTimeMillis()
         if (tooCloseStartTime != 0L && (currentTime - lastTimeSeenTooClose > gracePeriodDuration)) {
-            clearTrackingState()
+            tooCloseStartTime = 0L
+            mainHandler.post { hideSafetyOverlay() }
         }
     }
 
-    private fun clearTrackingState() {
-        tooCloseStartTime = 0L
-        mainHandler.post {
-            hideBannerAnimated()
+    private fun showSafetyOverlay() {
+        if (isBannerShowing) return
+
+        // Configure layout params to intercept the entire viewport surface
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_DIM_BEHIND, // ⬅️ Enables deep dimming behavior
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+            dimAmount = 0.85f // ⬅️ Dims the background apps by 85% for intense focus
+        }
+
+        // 🌟 NATIVE HARDWARE BLUR (For Android 12 / API 31 and above)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            params.blurBehindRadius = 35 // Creates a gorgeous frosted-glass blur over whatever the child was watching
+        }
+
+        try {
+            windowManager.addView(rootContainer, params)
+            isBannerShowing = true
+
+            // Clean overshoot spring animation to pop the card forward smoothly
+            animatedCardView.scaleX = 0.5f
+            animatedCardView.scaleY = 0.5f
+            animatedCardView.alpha = 0f
+            animatedCardView.animate()
+                .scaleX(1.0f)
+                .scaleY(1.0f)
+                .alpha(1.0f)
+                .setDuration(350)
+                .setInterpolator(OvershootInterpolator(1.2f))
+                .start()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    private fun hideSafetyOverlay() {
+        if (!isBannerShowing) return
+        try {
+            windowManager.removeView(rootContainer)
+            isBannerShowing = false
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -306,9 +274,7 @@ class ScreenGuardService : AccessibilityService(), LifecycleOwner {
 
     override fun onDestroy() {
         super.onDestroy()
+        hideSafetyOverlay()
         lifecycleRegistry.currentState = androidx.lifecycle.Lifecycle.State.DESTROYED
-        if (::rootContainer.isInitialized) {
-            windowManager.removeView(rootContainer)
-        }
     }
 }
