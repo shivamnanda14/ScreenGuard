@@ -44,7 +44,17 @@ A lightweight background application that resides silently within the Windows sy
 ---
 
 ---
+## 📱 Android App Upgrades (v1.1.0 — Child Mode Update)
+
+The Android tracking core has been completely overhauled to turn it into an un-bypassable child safety mechanism. 
+
+* **Dual Biometric Calibration Profiles:** Integrated an interactive runtime preference switch allowing users to cycle between **Adult Mode** and **Child Mode** tracking profiles, precisely tuned to handle the 25 cm eye-to-screen threshold across varying age groups.
+* **Immersive Screen Shield Overlay:** Upgraded traditional micro-banners into an absolute, full-screen viewport canvas running on an intensive **85% background dim layer** to pull absolute focus away from media or games.
+* **Hardware-Accelerated Window Blur:** For devices running Android 12 (API 31) and above, the system invokes a native `blurBehindRadius` of 35, transforming the background viewport into a gorgeous frosted-glass structural lockdown.
+* **Touch Input Absorption:** The root container intercepts and entirely consumes all pointer touch vectors. If a child attempts to frantically click through or around the overlay, the system absorbs the inputs, securing the device until they physically step back.
+
+---
 
 ## 📖 Deep-Dive Technical Documentation
 
-For an in-depth breakdown of the underlying system architecture, multi-threaded concurrency models, spatial tracking sensor calibration, and operating system kernel integrations, please check out our full [Complete Project Documentation PDF](./ScreenGuard_Technical_Architecture_Documentation%20git.pdf).
+For an in-depth breakdown of the underlying cross-platform architecture, multi-threaded concurrency models, CameraX + ML Kit spatial tracking sensor calibration, and Android accessibility layer kernel integrations, please check out our full [Complete Project Documentation PDF](./ScreenGuard_Technical_Architecture_Documentation%20git.pdf).
